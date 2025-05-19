@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>2D Car Racing Game</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #111;
+      font-family: sans-serif;
+    }
+    canvas {
+      display: block;
+      margin: auto;
+      background: #222;
+      border: 3px solid #fff;
+      border-radius: 10px;
+    }
+    #score {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      color: white;
+      font-size: 20px;
+      font-weight: bold;
+      display: none;
+    }
+    #game-over, #start-menu, #pause-menu {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0,0,0,0.9);
+      color: #fff;
+      padding: 20px 40px;
+      border-radius: 10px;
+      text-align: center;
+      font-size: 22px;
+      z-index: 10;
+      display: none;
+    }
+    button {
+      margin-top: 10px;
+      padding: 10px 20px;
+      font-size: 18px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .start-btn { background: #3498db; color: #fff; }
+    .restart-btn { background: #27ae60; color: #fff; }
+    .pause-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      padding: 8px 16px;
+      background: #e67e22;
+      color: white;
+      font-size: 16px;
+      border: none;
+      border-radius: 5px;
+      z-index: 5;
+      cursor: pointer;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="400" height="600"></canvas>
+  <div id="score">Score: 0</div>
+  <button id="pauseBtn" class="pause-btn">Pause</button>
+
+  <div id="start-menu">
+    <h2>2D Car Racing Game</h2>
+    <p>Select Difficulty:</p>
+    <button class="start-btn" onclick="startGame('easy')">Easy</button>
+    <button class="start-btn" onclick="startGame('medium')">Medium</button>
+    <button class="start-btn" onclick="startGame('hard')">Hard</button>
+  </div>
+
+  <div id="game-over">
+    <p>Game Over!</p>
+    <button class="restart-btn" onclick="showStartMenu()">Back to Menu</button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreDisplay = document.getElementById('score');
+    const gameOverDiv = document.getElementById('game-over');
+    const startMenu = document.getElementById('start-menu');
+    const pauseBtn = document.getElementById('pauseBtn');
+
+    const carWidth = 50;
+    const carHeight = 80;
+    let player = {};
+    let opponentCars = [];
+    let score = 0;
+    let gameRunning = false;
+    let paused = false;
+    let difficulty = 'medium';
+    let animationFrame;
+
+    const speedMap = {
+      easy: { player: 4, enemyMin: 2, enemyMax: 4 },
+      medium: { player: 5, enemyMin: 4, enemyMax: 6 },
+      hard: { player: 6, enemyMin: 6, enemyMax: 8 },
+    };
+
+    function showStartMenu() {
+      cancelAnimationFrame(animationFrame);
+      gameRunning = false;
+      gameOverDiv.style.display = 'none';
+      startMenu.style.display = 'block';
+      pauseBtn.style.display = 'none';
+      scoreDisplay.style.display = 'none';
+    }
+
+    function startGame(selectedDifficulty) {
+      difficulty = selectedDifficulty;
+      score = 0;
+      opponentCars = [];
+      const speeds = speedMap[difficulty];
+
+      player = {
+        x: canvas.width / 2 - carWidth / 2,
+        y: canvas.height - carHeight - 10,
+        width: carWidth,
+        height: carHeight,
+        color: 'cyan',
+        speed: speeds.player,
+        enemyMin: speeds.enemyMin,
+        enemyMax: speeds.enemyMax
+      };
+
+      startMenu.style.display = 'none';
+      gameOverDiv.style.display = 'none';
+      pauseBtn.style.display = 'block';
+      scoreDisplay.style.display = 'block';
+      scoreDisplay.textContent = 'Score: 0';
+      gameRunning = true;
+      paused = false;
+
+      spawnEnemies();
+      animate();
+    }
+
+    function createOpponentCar() {
+      const laneWidth = canvas.width / 3;
+      const lane = Math.floor(Math.random() * 3);
+      opponentCars.push({
+        x: lane * laneWidth + laneWidth / 2 - carWidth / 2,
+        y: -carHeight,
+        width: carWidth,
+        height: carHeight,
+        color: 'red',
+        speed: player.enemyMin + Math.random() * (player.enemyMax - player.enemyMin)
+      });
+    }
+
+    function drawCar(car) {
+      ctx.fillStyle = car.color;
+      ctx.fillRect(car.x, car.y, car.width, car.height);
+    }
+
+    function detectCollision(a, b) {
+      return (
+        a.x < b.x + b.width &&
+        a.x + a.width > b.x &&
+        a.y < b.y + b.height &&
+        a.y + a.height > b.y
+      );
+    }
+
+    function animate() {
+      if (!gameRunning || paused) return;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawCar(player);
+
+      for (let i = 0; i < opponentCars.length; i++) {
+        const car = opponentCars[i];
+        car.y += car.speed;
+        drawCar(car);
+
+        if (detectCollision(player, car)) {
+          endGame();
+          return;
+        }
+
+        if (car.y > canvas.height) {
+          opponentCars.splice(i, 1);
+          score++;
+          scoreDisplay.textContent = 'Score: ' + score;
+          i--;
+        }
+      }
+
+      animationFrame = requestAnimationFrame(animate);
+    }
+
+    function endGame() {
+      gameRunning = false;
+      gameOverDiv.style.display = 'block';
+      pauseBtn.style.display = 'none';
+    }
+
+    function spawnEnemies() {
+      setInterval(() => {
+        if (gameRunning && !paused) createOpponentCar();
+      }, 1200);
+    }
+
+    // Controls
+    document.addEventListener('keydown', (e) => {
+      if (!gameRunning || paused) return;
+      if (e.key === 'ArrowLeft' && player.x > 0) {
+        player.x -= player.speed * 2;
+      } else if (e.key === 'ArrowRight' && player.x < canvas.width - carWidth) {
+        player.x += player.speed * 2;
+      }
+    });
+
+    canvas.addEventListener('touchstart', (e) => {
+      touchStartX = e.touches[0].clientX;
+    });
+
+    canvas.addEventListener('touchend', (e) => {
+      if (!gameRunning || paused) return;
+      const deltaX = e.changedTouches[0].clientX - touchStartX;
+      if (Math.abs(deltaX) > 30) {
+        if (deltaX > 0 && player.x < canvas.width - carWidth) {
+          player.x += player.speed * 2;
+        } else if (deltaX < 0 && player.x > 0) {
+          player.x -= player.speed * 2;
+        }
+      }
+    });
+
+    // Pause Button
+    pauseBtn.addEventListener('click', () => {
+      paused = !paused;
+      pauseBtn.textContent = paused ? 'Resume' : 'Pause';
+      if (!paused) animate();
+    });
+
+    // Show Start Menu on load
+    showStartMenu();
+  </script>
+</body>
+</html>
